@@ -4,7 +4,7 @@ const functions = require('firebase-functions');
 const rp = require('request-promise');
 const {dialogflow, Suggestions, Permission} = require('actions-on-google');
 
-const tlBaseURl = 'http://api.translink.ca/rttiapi/v1';
+const tlBaseUrl = 'http://api.translink.ca/rttiapi/v1';
 const tlApiKey = 'hCnIQTl1g1LNlWOZhEfa';
 
 process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
@@ -13,13 +13,40 @@ const app = dialogflow();
 
 function getStopsAtCoordinates(lat, long) {
     let options = {
-        url: `${tlBaseURl}/stops?apikey=${tlApiKey}&lat=${lat}&long=${long}`,
+        url: `${tlBaseUrl}/stops?apikey=${tlApiKey}&lat=${lat}&long=${long}`,
         headers: {
             'Content-Type': 'application/json'
         }
     };
 
     return rp(options);
+}
+
+function getArrivalsAtStop(stopNo, count) {
+    let options = {
+        url: `${tlBaseUrl}/stops/${stopNo}/estimates?apikey=${tlApiKey}&count=${count}`,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    return rp(options);
+}
+
+function getNearestArrivals(lat, long) {
+    return new Promise((resolve, reject) => {
+        getStopsAtCoordinates(lat, long).then((stops) => {
+            console.log('STOPS', stops);
+            stops = JSON.parse(stops);
+            let nearestStop = stops[0].StopNo;
+
+            getArrivalsAtStop(nearestStop, 3).then((arrivals) => {
+                console.log('ARRIVALS', arrivals);
+                arrivals = JSON.parse(arrivals);
+                resolve(arrivals);
+            }).catch((err) => reject(err));
+        }).catch((err) => reject(err));
+    });
 }
 
 app.intent('Default Welcome Intent', (conv) => {
@@ -49,10 +76,23 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
     if (requestedPermission === 'DEVICE_PRECISE_LOCATION') {
         const {coordinates} = conv.device.location;
 
-        return getStopsAtCoordinates((coordinates.latitude).toFixed(6), (coordinates.longitude).toFixed(6)).then((stops) => {
-            console.log(stops);
-            conv.close('Check the logs for stops');
-        })
+        return getNearestArrivals((coordinates.latitude).toFixed(6), (coordinates.longitude).toFixed(6)).then((arrivals) => {
+            console.log(arrivals);
+
+            let speech = ``;
+            let text = ``;
+
+            arrivals.forEach((arrival, i) => {
+                arrival.Schedules.forEach((schedule, j) => {
+
+                });
+            });
+
+            conv.close('Check the logs');
+        }).catch((err) => {
+            console.error(err);
+            conv.close('Sorry, something went wrong when trying to get the next arrivals.');
+        });
     } else conv.close('Sorry, I couldn\'t get your location');
 });
 
