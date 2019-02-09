@@ -55,7 +55,7 @@ function getNearestArrivals(lat, long, count, routeNo, terminus) {
 }
 
 app.intent('Default Welcome Intent', (conv) => {
-    conv.ask('Welcome to Vancouver Bus Arrivals!');
+    conv.ask('Welcome to Vancouver Bus Arrivals! You can ask when the next bus will arrive, and can optionally specify a route.');
     conv.ask(new Suggestions('When is the next bus?'));
     conv.ask(new Suggestions('What can I ask?'));
 });
@@ -101,8 +101,8 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
                     arrival.Schedules.forEach((schedule, j) => {
                         speech += `<speak>The ${arrival.RouteNo} to ${schedule.Destination} in ${schedule.ExpectedCountdown} minutes. <break time="500ms" /> </speak>`;
                         text += `${arrival.RouteNo} ${schedule.Destination} - ${schedule.ExpectedCountdown} minutes`;
-                        if (j !== arrival.Schedules.length - 1) text += '\n';
                     });
+                    if (i !== results.arrivals.length - 1) text += '\n';
                 });
 
                 conv.close(new SimpleResponse({
