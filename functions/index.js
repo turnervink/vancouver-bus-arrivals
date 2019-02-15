@@ -1,49 +1,25 @@
 'use strict';
 
+const translink = require('./translink');
+
 const functions = require('firebase-functions');
 const rp = require('request-promise');
 const {dialogflow, Suggestions, Permission, SimpleResponse} = require('actions-on-google');
-
-const tlBaseUrl = 'http://api.translink.ca/rttiapi/v1';
-const tlApiKey = 'hCnIQTl1g1LNlWOZhEfa';
 
 process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
 
 const app = dialogflow();
 
-function getStopsAtCoordinates(lat, long) {
-    let options = {
-        url: `${tlBaseUrl}/stops?apikey=${tlApiKey}&lat=${lat}&long=${long}`,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        simple: false
-    };
 
-    return rp(options);
-}
-
-function getArrivalsAtStop(stopNo, count) {
-    let options = {
-        url: `${tlBaseUrl}/stops/${stopNo}/estimates?apikey=${tlApiKey}&count=${count}`,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        simple: false
-    };
-
-    return rp(options);
-}
-
-function getNearestArrivals(lat, long, count, routeNo, terminus) {
+function getArrivals(lat, long, count) {
     return new Promise((resolve, reject) => {
-        getStopsAtCoordinates(lat, long).then((stops) => {
+        translink.getStopsNearCoordinates(lat, long, routeNo).then((stops) => {
             // TODO If routeNo or terminus is given filter the returned stops
 
             stops = JSON.parse(stops);
             let nearestStop = stops[0].StopNo;
 
-            getArrivalsAtStop(nearestStop, count).then((arrivals) => {
+            translink.getArrivalsAtStop(nearestStop, count).then((arrivals) => {
                 arrivals = JSON.parse(arrivals);
                 resolve({
                     nearestStop: stops[0],
@@ -52,6 +28,14 @@ function getNearestArrivals(lat, long, count, routeNo, terminus) {
             }).catch((err) => reject(err));
         }).catch((err) => reject(err));
     });
+}
+
+function getArrivalsForRoute(lat, long, route, count) {
+
+}
+
+function getArrivalsForRouteWithTerminus(lat, long, route, terminus, count) {
+
 }
 
 app.intent('Default Welcome Intent', (conv) => {
@@ -81,11 +65,11 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
     if (requestedPermission === 'DEVICE_PRECISE_LOCATION') {
         const {coordinates} = conv.device.location;
 
-        // TODO Look at parameters to determine what to pass to getNearestArrivals, or call getArrivalsNearLocation
+        // TODO Look at parameters to determine what function to call
 
         // No information on route/terminus was given; find the next arrival of each route at the stop closest to the user
         // TODO Will unspecified parameters be null so we can just pass them to getNearestArrivals and deal with them there?
-        return getNearestArrivals((coordinates.latitude).toFixed(6), (coordinates.longitude).toFixed(6), 1, null, null).then((results) => {
+        return getArrivals((coordinates.latitude).toFixed(6), (coordinates.longitude).toFixed(6), 1).then((results) => {
             console.log(results);
 
             if (!results.arrivals.Code) {
@@ -99,7 +83,7 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
 
                 results.arrivals.forEach((arrival, i) => {
                     arrival.Schedules.forEach((schedule, j) => {
-                        speech += `<speak>The ${arrival.RouteNo} to ${schedule.Destination} in ${schedule.ExpectedCountdown} minutes. <break time="500ms" /> </speak>`;
+                        speech += `The ${arrival.RouteNo} to ${schedule.Destination} in ${schedule.ExpectedCountdown} minutes.`;
                         text += `${arrival.RouteNo} ${schedule.Destination} - ${schedule.ExpectedCountdown} minutes`;
                     });
                     if (i !== results.arrivals.length - 1) text += '\n';
