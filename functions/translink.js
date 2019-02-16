@@ -31,12 +31,16 @@ exports.getStopsNearCoordinates = function(lat, long) {
  * @param routeNo
  * @param terminus
  */
-exports.getStopsNearCoordinatesServingRoute = function(lat, long, routeNo, terminus) {
-    throw 'Not implemented';
+exports.getStopsNearCoordinatesServingRoute = function(lat, long, routeNo) {
+    let options = {
+        url: `${tlBaseUrl}/stops?apikey=${tlApiKey}&lat=${lat}&long=${long}&RouteNo=${routeNo}`,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        simple: false
+    };
 
-    /*
-    Add route param to request.
-     */
+    return rp(options);
 };
 
 /**
@@ -62,9 +66,12 @@ exports.getStopsNearCoordinatesServingRouteWithTerminus = function(lat, long, ro
  * @param stopNo
  * @param count
  */
-exports.getArrivalsAtStop = function(stopNo, count) {
+exports.getArrivalsAtStop = function(stopNo, count, routeNo = null) {
+    let url = `${tlBaseUrl}/stops/${stopNo}/estimates?apikey=${tlApiKey}&count=${count}`;
+    if (stopNo) url += `&RouteNo=${routeNo}`;
+
     let options = {
-        url: `${tlBaseUrl}/stops/${stopNo}/estimates?apikey=${tlApiKey}&count=${count}`,
+        url: url,
         headers: {
             'Content-Type': 'application/json'
         },
