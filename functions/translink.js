@@ -29,7 +29,6 @@ exports.getStopsNearCoordinates = function(lat, long) {
  * @param lat
  * @param long
  * @param routeNo
- * @param terminus
  */
 exports.getStopsNearCoordinatesServingRoute = function(lat, long, routeNo) {
     let options = {
@@ -65,10 +64,11 @@ exports.getStopsNearCoordinatesServingRouteWithTerminus = function(lat, long, ro
  *
  * @param stopNo
  * @param count
+ * @param routeNo
  */
 exports.getArrivalsAtStop = function(stopNo, count, routeNo = null) {
     let url = `${tlBaseUrl}/stops/${stopNo}/estimates?apikey=${tlApiKey}&count=${count}`;
-    if (stopNo) url += `&RouteNo=${routeNo}`;
+    if (routeNo) url += `&RouteNo=${routeNo}`;
 
     let options = {
         url: url,

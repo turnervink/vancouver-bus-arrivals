@@ -3,7 +3,6 @@
 const translink = require('./translink');
 
 const functions = require('firebase-functions');
-const rp = require('request-promise');
 const {dialogflow, Suggestions, Permission, SimpleResponse} = require('actions-on-google');
 
 process.env.DEBUG = 'dialogflow:debug'; // enables lib debugging statements
@@ -33,34 +32,53 @@ function getArrivalsForRoute(lat, long, routeNo, count) {
         translink.getStopsNearCoordinatesServingRoute(lat, long, routeNo).then((stops) => {
             stops = JSON.parse(stops);
             let promises = [];
-            let finalArrivals = {};
+            let finalArrivals = [];
+
+            if (stops.Code) reject('No stops serving the route were found');
 
             stops.forEach((stop) => {
-                promises.push(translink.getArrivalsAtStop(stopNo, count, routeNo));
+                promises.push(translink.getArrivalsAtStop(stop.StopNo, count, routeNo));
             });
 
             Promise.all(promises).then((arrivals) => {
                 arrivals.forEach((arrival, index) => {
+                    arrival = JSON.parse(arrival)[0];
 
-                    arrival = JSON.parse(arrival);
+                    let res = {
+                        route: '',
+                        terminus: '',
+                        expectedCountdown: '',
+                        stopName: ''
+                    };
 
+                    res.route = arrival.RouteNo;
+                    res.terminus = arrival.Schedules[0].Destination;
+                    res.expectedCountdown = arrival.Schedules[0].ExpectedCountdown;
+                    res.stopName = stops[index].Name;
+                    finalArrivals.push(res);
+                });
 
+                let speech = ``;
+                let text = ``;
+
+                finalArrivals.forEach((result, i) => {
+                    console.log(result);
+                    speech += `At ${result.stopName}, the ${result.route} to ${result.terminus} in ${result.expectedCountdown} minutes.`;
+                    text += `${result.stopName}: ${result.terminus} - ${result.expectedCountdown} minutes`;
+                    if (i !== finalArrivals.length - 1) text += '\n';
+                });
+
+                resolve({
+                    speech: speech,
+                    text: text
                 });
             });
-
-            /*
-            For each stop get next arrival for route
-            Compile stop info and arrival info for each in one object
-            Resolve object
-             */
-
-
         }).catch((err) => reject(err));
     });
 }
 
 function getArrivalsForRouteWithTerminus(lat, long, route, terminus, count) {
-
+    throw 'Not implemented';
 }
 
 app.intent('Default Welcome Intent', (conv) => {
@@ -76,9 +94,6 @@ app.intent('Default Fallback Intent', (conv) => {
 app.intent('Get location permission', (conv, params) => {
     conv.data.requestedPermission = 'DEVICE_PRECISE_LOCATION';
 
-    console.log(conv.arguments);
-    console.log(params);
-
     return conv.ask(new Permission({
         context: 'To find nearby arrivals',
         permissions: conv.data.requestedPermission
@@ -92,22 +107,30 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
 
     if (requestedPermission === 'DEVICE_PRECISE_LOCATION') {
         const {coordinates} = conv.device.location;
-
-        // TODO Look at parameters to determine what function to call
         let context = conv.contexts.get('arrival_filters');
 
-        if (context.parameters.routeNo) {
-            return getArrivalsForRoute((coordinates.latitude).toFixed(6), (coordinates.longitude).toFixed(6), context.parameters.routeNo, 1).then((results) => {
-                console.log(results);
+        if (context.parameters.routeNo !== '') {
+            console.log('ROUTE NUMBER WAS GIVEN', context.parameters.routeNo);
 
-                if (!results.arrivals.Code) {
-                    conv.close('Check logs');
-                } else {
-                    // TODO Write error code handing function
-                    conv.close(`Sorry, no stop estimates could be found for ${results.nearestStop.Name}`);
-                }
-            });
+            return getArrivalsForRoute(
+                (coordinates.latitude).toFixed(6),
+                (coordinates.longitude).toFixed(6),
+                context.parameters.routeNo,
+                1
+            ).then((response) => {
+                conv.ask(new SimpleResponse({
+                    speech: `Here are the next arrivals for the ${context.parameters.routeNo}`,
+                    text: `Here are the next arrivals for the ${context.parameters.routeNo} at the stops nearest your location`
+                }));
+
+                conv.close(new SimpleResponse({
+                    speech: response.speech,
+                    text: response.text
+                }));
+            }).catch((err) => conv.close(err));
         } else {
+            console.log('NO ROUTE NUMBER WAS GIVEN');
+
             return getArrivals((coordinates.latitude).toFixed(6), (coordinates.longitude).toFixed(6), 1).then((results) => {
                 console.log(results);
 
@@ -117,11 +140,12 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
                         text: `Here are the next arrivals at ${results.nearestStop.Name}`
                     }));
 
+                    // TODO Move this into the getArrivals function as done with getArrivalsForRoute
                     let speech = ``;
                     let text = ``;
 
                     results.arrivals.forEach((arrival, i) => {
-                        arrival.Schedules.forEach((schedule, j) => {
+                        arrival.Schedules.forEach(schedule => {
                             speech += `The ${arrival.RouteNo} to ${schedule.Destination} in ${schedule.ExpectedCountdown} minutes.`;
                             text += `${arrival.RouteNo} ${schedule.Destination} - ${schedule.ExpectedCountdown} minutes`;
                         });
