@@ -1,5 +1,6 @@
 'use strict';
 
+const formatter = require('./speech');
 const translink = require('./translink');
 
 const functions = require('firebase-functions');
@@ -29,6 +30,8 @@ function getArrivals(lat, long, count) {
 
 function getArrivalsForRoute(lat, long, routeNo, count) {
     return new Promise((resolve, reject) => {
+        let obj = this;
+
         translink.getStopsNearCoordinatesServingRoute(lat, long, routeNo).then((stops) => {
             stops = JSON.parse(stops);
             let promises = [];
@@ -44,17 +47,12 @@ function getArrivalsForRoute(lat, long, routeNo, count) {
                 arrivals.forEach((arrival, index) => {
                     arrival = JSON.parse(arrival)[0];
 
-                    let res = {
-                        route: '',
-                        terminus: '',
-                        expectedCountdown: '',
-                        stopName: ''
-                    };
+                    let res = {};
 
                     res.route = arrival.RouteNo;
-                    res.terminus = arrival.Schedules[0].Destination;
+                    res.terminus = formatter.formatTerminus(arrival.Schedules[0].Destination);
                     res.expectedCountdown = arrival.Schedules[0].ExpectedCountdown;
-                    res.stopName = stops[index].Name;
+                    res.stopName = formatter.formatStopName(stops[index].OnStreet, stops[index].AtStreet);
                     finalArrivals.push(res);
                 });
 
@@ -63,7 +61,7 @@ function getArrivalsForRoute(lat, long, routeNo, count) {
 
                 finalArrivals.forEach((result, i) => {
                     console.log(result);
-                    speech += `At ${result.stopName}, the ${result.route} to ${result.terminus} in ${result.expectedCountdown} minutes.`;
+                    speech += `On ${result.stopName}, the ${result.route} to ${result.terminus} in ${result.expectedCountdown} minutes.`;
                     text += `${result.stopName}: ${result.terminus} - ${result.expectedCountdown} minutes`;
                     if (i !== finalArrivals.length - 1) text += '\n';
                 });
