@@ -11,7 +11,7 @@ const tlApiKey = 'hCnIQTl1g1LNlWOZhEfa';
  * @param lat
  * @param long
  */
-exports.getStopsNearCoordinates = function(lat, long) {
+exports.getStopsNearCoordinates = function (lat, long) {
     let options = {
         url: `${tlBaseUrl}/stops?apikey=${tlApiKey}&lat=${lat}&long=${long}`,
         headers: {
@@ -30,7 +30,7 @@ exports.getStopsNearCoordinates = function(lat, long) {
  * @param long
  * @param routeNo
  */
-exports.getStopsNearCoordinatesServingRoute = function(lat, long, routeNo) {
+exports.getStopsNearCoordinatesServingRoute = function (lat, long, routeNo) {
     let options = {
         url: `${tlBaseUrl}/stops?apikey=${tlApiKey}&lat=${lat}&long=${long}&RouteNo=${routeNo}`,
         headers: {
@@ -50,7 +50,7 @@ exports.getStopsNearCoordinatesServingRoute = function(lat, long, routeNo) {
  * @param routeNo
  * @param terminus
  */
-exports.getStopsNearCoordinatesServingRouteWithTerminus = function(lat, long, routeNo, terminus) {
+exports.getStopsNearCoordinatesServingRouteWithTerminus = function (lat, long, routeNo, terminus) {
     throw 'Not implemented;'
 
     /*
@@ -66,7 +66,7 @@ exports.getStopsNearCoordinatesServingRouteWithTerminus = function(lat, long, ro
  * @param count
  * @param routeNo
  */
-exports.getArrivalsAtStop = function(stopNo, count, routeNo = null) {
+exports.getArrivalsAtStop = function (stopNo, count, routeNo = null) {
     let url = `${tlBaseUrl}/stops/${stopNo}/estimates?apikey=${tlApiKey}&count=${count}`;
     if (routeNo) url += `&RouteNo=${routeNo}`;
 
@@ -79,4 +79,15 @@ exports.getArrivalsAtStop = function(stopNo, count, routeNo = null) {
     };
 
     return rp(options);
+};
+
+exports.getResponseForError = function (code) {
+    switch (code) {
+        case '1012':
+            return 'Sorry, no matching stops could be found';
+        case '3005':
+            return 'Sorry, no arrival estimates could be found';
+        default:
+            return 'Sorry, an unexpected error occurred';
+    }
 };

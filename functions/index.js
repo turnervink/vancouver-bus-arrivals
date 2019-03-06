@@ -15,6 +15,9 @@ function getArrivals(lat, long, count) {
     return new Promise((resolve, reject) => {
         translink.getStopsNearCoordinates(lat, long).then((stops) => {
             stops = JSON.parse(stops);
+
+            if (stops.Code) reject(stops.Code);
+
             let nearestStop = stops[0].StopNo;
 
             translink.getArrivalsAtStop(nearestStop, count).then((arrivals) => {
@@ -30,14 +33,12 @@ function getArrivals(lat, long, count) {
 
 function getArrivalsForRoute(lat, long, routeNo, count) {
     return new Promise((resolve, reject) => {
-        let obj = this;
-
         translink.getStopsNearCoordinatesServingRoute(lat, long, routeNo).then((stops) => {
             stops = JSON.parse(stops);
             let promises = [];
             let finalArrivals = [];
 
-            if (stops.Code) reject('No stops serving the route were found');
+            if (stops.Code) reject(stops.Code);
 
             stops.forEach((stop) => {
                 promises.push(translink.getArrivalsAtStop(stop.StopNo, count, routeNo));
@@ -47,17 +48,20 @@ function getArrivalsForRoute(lat, long, routeNo, count) {
                 arrivals.forEach((arrival, index) => {
                     arrival = JSON.parse(arrival)[0];
 
-                    let res = {};
-
-                    res.route = arrival.RouteNo;
-                    res.terminus = formatter.formatTerminus(arrival.Schedules[0].Destination);
-                    res.expectedCountdown = arrival.Schedules[0].ExpectedCountdown;
-                    res.stopName = formatter.formatStopName(stops[index].OnStreet, stops[index].AtStreet);
-                    finalArrivals.push(res);
+                    if (!arrival.Code) {
+                        let res = {};
+                        res.route = arrival.RouteNo;
+                        res.terminus = formatter.formatTerminus(arrival.Schedules[0].Destination);
+                        res.expectedCountdown = arrival.Schedules[0].ExpectedCountdown;
+                        res.stopName = formatter.formatStopName(stops[index].OnStreet, stops[index].AtStreet);
+                        finalArrivals.push(res);
+                    }
                 });
 
                 let speech = ``;
                 let text = ``;
+
+                if (finalArrivals.length === 0) reject('3005');
 
                 finalArrivals.forEach((result, i) => {
                     console.log(result);
@@ -81,6 +85,7 @@ function getArrivalsForRouteWithTerminus(lat, long, route, terminus, count) {
 
 app.intent('Default Welcome Intent', (conv) => {
     conv.ask('Welcome to Vancouver Bus Arrivals! You can ask when the next bus will arrive, and can optionally specify a route.');
+    conv.ask('How can I help you?');
     conv.ask(new Suggestions('When is the next bus?'));
     conv.ask(new Suggestions('What can I ask?'));
 });
@@ -125,7 +130,7 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
                     speech: response.speech,
                     text: response.text
                 }));
-            }).catch((err) => conv.close(err));
+            }).catch((err) => conv.close(translink.getResponseForError(err)));
         } else {
             console.log('NO ROUTE NUMBER WAS GIVEN');
 
@@ -134,8 +139,8 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
 
                 if (!results.arrivals.Code) {
                     conv.ask(new SimpleResponse({
-                        speech: `Here are the next arrivals at the nearest stop, ${results.nearestStop.Name}`,
-                        text: `Here are the next arrivals at ${results.nearestStop.Name}`
+                        speech: `Here are the next arrivals at ${formatter.formatStopName(results.nearestStop.OnStreet, results.nearestStop.AtStreet)}`,
+                        text: `Here are the next arrivals at ${formatter.formatStopName(results.nearestStop.OnStreet, results.nearestStop.AtStreet)}`
                     }));
 
                     // TODO Move this into the getArrivals function as done with getArrivalsForRoute
@@ -144,8 +149,8 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
 
                     results.arrivals.forEach((arrival, i) => {
                         arrival.Schedules.forEach(schedule => {
-                            speech += `The ${arrival.RouteNo} to ${schedule.Destination} in ${schedule.ExpectedCountdown} minutes.`;
-                            text += `${arrival.RouteNo} ${schedule.Destination} - ${schedule.ExpectedCountdown} minutes`;
+                            speech += `The ${arrival.RouteNo} to ${formatter.formatTerminus(schedule.Destination)} in ${schedule.ExpectedCountdown} minutes.`;
+                            text += `${arrival.RouteNo} ${formatter.formatTerminus(schedule.Destination)} - ${schedule.ExpectedCountdown} minutes`;
                         });
                         if (i !== results.arrivals.length - 1) text += '\n';
                     });
@@ -155,8 +160,8 @@ app.intent('Get arrivals near user', (conv, params, permissionGranted) => {
                         text: text
                     }));
                 } else {
-                    // TODO Write error code handing function
-                    conv.close(`Sorry, no stop estimates could be found for ${results.nearestStop.Name}`);
+                    let speech = translink.getResponseForError(results.arrivals.Code);
+                    conv.close(speech);
                 }
 
             }).catch((err) => {
