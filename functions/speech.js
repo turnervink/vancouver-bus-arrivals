@@ -7,7 +7,9 @@ const acronymTermini = [
 
 const expansions = {
     'STN': 'Station',
-    'EXCH': 'Exchange'
+    'EXCH': 'Exchange',
+    'PL': 'Place',
+    'TO': '' // Avoids things like "to To Granville"
 };
 
 function toTitleCase(str) {
@@ -20,9 +22,7 @@ function toTitleCase(str) {
 }
 
 function expand(str) {
-    console.log('EXPANDING', str);
     Object.keys(expansions).forEach(key => {
-        console.log(`Finding ${key} in ${str}`);
         let regex = new RegExp(key, 'g');
         str = str.replace(regex, expansions[key]);
     });
@@ -31,6 +31,8 @@ function expand(str) {
 }
 
 exports.formatStopName = function (onStreet, atStreet) {
+    onStreet = expand(onStreet);
+    atStreet = expand(atStreet);
     return `${toTitleCase(onStreet)} at ${toTitleCase(atStreet)}`;
 };
 

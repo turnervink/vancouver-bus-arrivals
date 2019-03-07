@@ -94,6 +94,24 @@ app.intent('Default Fallback Intent', (conv) => {
     conv.close('Sorry, I didn\'t understand. Please try again later.');
 });
 
+app.intent('Help', (conv) => {
+    conv.ask(new SimpleResponse({
+        speech: '<speak>I can help you get information on the next bus arrivals in your area.\n' +
+            'You can ask things like: <break time="0.5"/>\n' +
+            '"When is the next bus going to arrive?" or\n' +
+            '"When is the next number 2 going to be here?"\n' +
+            '<break time="0.5"/> and I\'ll use your current location to find the stops nearest you to search for arrivals.</speak>',
+        text: 'You can ask things like:\n ' +
+            '"When is the next bus going to arrive?" or\n ' +
+            '"When is the next number 2 going to be here?"\n' +
+            'and I\'ll use your current location to find the stops nearest you to search for arrivals.',
+    }));
+
+    conv.ask('So how can I help you?');
+
+    conv.ask(new Suggestions('When is the next bus?'));
+});
+
 app.intent('Get location permission', (conv, params) => {
     conv.data.requestedPermission = 'DEVICE_PRECISE_LOCATION';
 
